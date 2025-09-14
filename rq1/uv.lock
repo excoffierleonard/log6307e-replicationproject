@@ -7,6 +7,15 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "cliffs-delta"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/53/9eba11330149a8abbb3e41c956c4bf6b93731c460fd921c62b0735047c69/cliffs_delta-1.0.0.tar.gz", hash = "sha256:909595ceaf051390fc82e662fdefb5ccca2cd3f49bb23531d903a53ae9f07e43", size = 3106, upload-time = "2021-10-15T06:09:43.379Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/37/dca1aec82037fac98ef6e4f027cbc03bf323c19269e813be98ded42a6ffd/cliffs_delta-1.0.0-py3-none-any.whl", hash = "sha256:2ec087e8254861204aab79e222b2e863a79f3d6f35d69e14f8b188fb6c5b048f", size = 10386, upload-time = "2021-10-15T06:09:41.572Z" },
+]
+
+[[package]]
 name = "numpy"
 version = "2.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -154,12 +163,14 @@ name = "rq1"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cliffs-delta" },
     { name = "pandas" },
     { name = "scipy" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "cliffs-delta", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.3.2" },
     { name = "scipy", specifier = ">=1.16.2" },
 ]
