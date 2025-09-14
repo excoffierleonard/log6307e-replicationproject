@@ -1,49 +1,79 @@
 import pandas as pd
 from scipy.stats import mannwhitneyu
 
-# Load dataset
-df = pd.read_csv('authors_data/IST_MIR.csv')
+# Datasets
+datasets = {
+    "Mirantis": "authors_data/IST_MIR.csv",
+    "Mozilla": "authors_data/IST_MOZ.csv",
+    "Openstack": "authors_data/IST_OST.csv",
+    "Wikimedia": "authors_data/IST_WIK.csv"
+}
 
-# Columns to test (the properties from the study)
-properties = [
-    "Lines_of_code",
-    "Hard_coded_string",
-    "Attribute",
-    "Ensure",
-    "File",
-    "File_mode",
-    "Include",
-    "Require",
-    "SSH_KEY",
-    "URL",
-    "Command",
-    "Comment"
-]
+# Mapping of dataset column names to rendered names (preserving order)
+properties = {
+    "Attribute": "Attribute",
+    "Command": "Command",
+    "Comment": "Comment",
+    "Ensure": "Ensure",
+    "File": "File",
+    "File_mode": "File mode",
+    "Hard_coded_string": "Hard-coded string",
+    "Include": "Include",
+    "Lines_of_code": "Lines of code",
+    "Require": "Require",
+    "SSH_KEY": "SSH_KEY",
+    "URL": "URL"
+}
 
-# Split groups by defect_status
-def_group = df[df['defect_status'] == 1]
-nondef_group = df[df['defect_status'] == 0]
+# Storage for table (keys = property rendered names, values = dict of dataset:pval)
+table = {}
 
-results = []
+# Iterate over each property to test
+for prop, rendered_name in properties.items():
+    # Initialize dictionary for each property
+    table[rendered_name] = {}
 
-for prop in properties:
-    defective = def_group[prop].dropna()
-    non_defective = nondef_group[prop].dropna()
-    
-    # Mann-Whitney U test (alternative = greater, same as the paper)
-    stat, p = mannwhitneyu(defective, non_defective, alternative="greater")
-    
-    results.append({
-        "Property": prop,
-        "Median_def": defective.median(),
-        "Median_nondef": non_defective.median(),
-        "U_stat": stat,
-        "p_value": p
-    })
+    # Track if all p-values < 0.05 for this property
+    all_significant = True
 
-# Put results into a DataFrame
-results_df = pd.DataFrame(results)
+    # Iterate over each dataset
+    for dataset_name, file_path in datasets.items():
+        # Load dataset
+        df = pd.read_csv(file_path)
+
+        # Select values for defective and non-defective groups
+        def_group = df[df['defect_status'] == 1][prop].dropna()
+        nondef_group = df[df['defect_status'] == 0][prop].dropna()
+
+        # Perform Mann-Whitney U test (alternative: greater)
+        stat, p = mannwhitneyu(def_group, nondef_group, alternative="greater")
+
+        # Render p-values: <0.001 as "<0.001", 0.001-0.01 with 3 decimals, else with 2 decimals, always round down
+        if p < 0.001:
+            p_value = "<0.001"
+        elif p < 0.01:
+            p_value = f"{(int(p * 1000) / 1000):.3f}"
+        else:
+            p_value = f"{(int(p * 100) / 100):.2f}"
+
+        # Store p-value in results table
+        table[rendered_name][dataset_name] = p_value
+
+        # Check significance
+        # For "<0.001", treat as significant
+        if not (p < 0.05):
+            all_significant = False
+
+    # Bold property name if all p-values < 0.05
+    if all_significant:
+        # Markdown bold
+        bold_name = f"**{rendered_name}**"
+        table[bold_name] = table.pop(rendered_name)
+
+# Build DataFrame
+results_df = pd.DataFrame.from_dict(table, orient='index')
+results_df.reset_index(inplace=True)
+results_df.rename(columns={'index': 'Property'}, inplace=True)
+
+# Show results
 print(results_df)
-
-# Save to CSV
-results_df.to_csv("mann_whitney_results.csv", index=False)
