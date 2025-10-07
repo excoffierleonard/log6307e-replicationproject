@@ -1,4 +1,5 @@
-# Leakage-free RQ3 pipeline; reports MEDIAN AUC across 10x10 CV.
+# rq3/scripts/rq3_train.R
+# Leakage-free RQ3 pipeline; MEDIAN AUC across 10x10 CV computed from OOF preds per resample.
 
 suppressPackageStartupMessages({
   library(caret)
@@ -48,7 +49,7 @@ ctrl <- trainControl(
   number = 10,
   repeats = 10,
   classProbs = TRUE,
-  summaryFunction = twoClassSummary,  # gives ROC per resample
+  summaryFunction = twoClassSummary,  # gives ROC per resample if available
   savePredictions = "final"
 )
 
@@ -56,8 +57,27 @@ ctrl <- trainControl(
 to_yes_no <- function(v) factor(ifelse(as.numeric(v) == 1, "Yes", "No"),
                                 levels = c("No","Yes"))
 
+# filter to best-tuned rows; if no tuning params, return df unchanged
 filter_best <- function(df, best) {
   if (is.null(best) || ncol(best) == 0) df else dplyr::semi_join(df, best, by = names(best))
+}
+
+# compute AUC per resample from OOF predictions, then take median
+median_auc_from_preds <- function(preds) {
+  # preds must have columns: obs (factor), Yes (prob), Resample
+  auc_by_resample <- preds %>%
+    group_by(Resample) %>%
+    summarise(
+      ROC = {
+        roc_obj <- tryCatch(
+          pROC::roc(response = obs, predictor = Yes, levels = c("No","Yes"), quiet = TRUE),
+          error = function(e) NULL
+        )
+        if (is.null(roc_obj)) NA_real_ else as.numeric(pROC::auc(roc_obj))
+      },
+      .groups = "drop"
+    )
+  median(auc_by_resample$ROC, na.rm = TRUE)
 }
 
 # main -------------------------------------------------------------
@@ -92,19 +112,20 @@ run_one <- function(ds_name, filename) {
               file.path(MT_DIR, sprintf("%s_%s_results.csv", ds_name, m)),
               row.names = FALSE)
 
-    # --- NEW: MEDIAN AUC across the 100 resamples (best-tuned model only) ---
-    best     <- fit$bestTune
-    res_best <- filter_best(fit$resample, best)
-    AUC_med  <- suppressWarnings(median(res_best$ROC, na.rm = TRUE))
+    # best-tuned subsets
+    best  <- fit$bestTune
+    preds <- filter_best(fit$pred, best)       # OOF predictions for best tune
 
-    # out-of-fold predictions (best tune) for CM + ROC plot
-    preds <- filter_best(fit$pred, best)
+    # MEDIAN AUC across the 100 resamples, computed from OOF preds
+    AUC_med <- suppressWarnings(median_auc_from_preds(preds))
 
+    # confusion matrix from pooled OOF preds
     cm <- caret::confusionMatrix(preds$pred, preds$obs, positive = "Yes")
     write.csv(as.data.frame(cm$table),
               file.path(CM_DIR, sprintf("%s_%s_confusion_matrix.csv", ds_name, m)),
               row.names = FALSE)
 
+    # ROC curve from OOF preds (visual)
     png(file.path(FIG_DIR, sprintf("roc_%s_%s.png", ds_name, m)), width = 1000, height = 800)
     plot(pROC::roc(preds$obs, preds$Yes, levels = c("No","Yes"), quiet = TRUE),
          main = sprintf("ROC — %s %s (10×10 CV, OOF)", toupper(ds_name), toupper(m)))
