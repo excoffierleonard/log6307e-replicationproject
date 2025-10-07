@@ -1,7 +1,10 @@
-# rq3/scripts/pca_exploratory.R
-# Purpose: DESCRIPTIVE PCA ONLY (NOT USED FOR TRAINING).
-# Computes PCs needed to reach ≥95% variance per dataset and makes scree plots.
-# Do NOT feed these PCs into model training; training uses fold-internal PCA.
+# --- PCA (exploratory) vs training ---
+# This script is DESCRIPTIVE ONLY.
+# It runs PCA on the full dataset to report how many PCs reach ≥95% variance
+# and to produce scree plots for the paper. It is NOT used for training.
+# Models are trained by scripts/rq3_train.R, which fits log/scale/PCA
+# INSIDE each cross-validation split (training folds only) to avoid leakage.
+
 
 datasets <- c(
   Mirantis   = "rq3/data/IST_MIR.csv",
